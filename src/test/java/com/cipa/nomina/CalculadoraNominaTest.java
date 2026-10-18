@@ -59,4 +59,59 @@ class CalculadoraNominaTest {
         assertEquals(BigDecimal.ZERO.setScale(2), resumen.deduccionFondoAhorro());
     }
 
+    /** Compara ventas exactamente en el limite con ventas superiores para verificar el bono del 3%. */
+    @Test
+    void comisionIncluyeBonoSoloAlSuperarVeinteMillones() {
+        EmpleadoPorComision limite = new EmpleadoPorComision("5", "Mia", new BigDecimal("1000000"),
+                new BigDecimal("20000000"), new BigDecimal("0.10"));
+        EmpleadoPorComision excede = new EmpleadoPorComision("6", "Noa", new BigDecimal("1000000"),
+                new BigDecimal("20000001"), new BigDecimal("0.10"));
+
+        assertEquals(new BigDecimal("3000000.00"), calculadora.calcular(limite).salarioBruto());
+        assertEquals(new BigDecimal("3600000.13"), calculadora.calcular(excede).salarioBruto());
+        assertEquals(new BigDecimal("1000000.00"), calculadora.calcular(excede).beneficioAlimentacion());
+    }
+
+    /** Comprueba el salario fijo temporal y la ausencia de alimentacion y bonos adicionales. */
+    @Test
+    void temporalNoRecibeBonosNiAlimentacion() {
+        ResumenNomina resumen = calculadora.calcular(
+                new EmpleadoTemporal("7", "Omar", new BigDecimal("2500000"), 4));
+        assertEquals(new BigDecimal("2500000.00"), resumen.salarioBruto());
+        assertEquals(BigDecimal.ZERO.setScale(2), resumen.beneficioAlimentacion());
+    }
+
+    /** Verifica que la tasa ARL inyectada se descuenta del bruto y reduce el neto. */
+    @Test
+    void arlSeAplicaComoTasaConfigurable() {
+        CalculadoraNomina conArl = new CalculadoraNomina(new BigDecimal("0.01"));
+        ResumenNomina resumen = conArl.calcular(
+                new EmpleadoTemporal("8", "Paz", new BigDecimal("1000000"), 1));
+        assertEquals(new BigDecimal("10000.00"), resumen.deduccionArl());
+        assertEquals(new BigDecimal("950000.00"), resumen.salarioNeto());
+    }
+
+    /** Comprueba que las horas y ventas negativas se rechazan al construir sus empleados. */
+    @Test
+    void rechazaHorasYVentasNegativas() {
+        assertThrows(IllegalArgumentException.class, () -> new EmpleadoPorHoras("9", "Sol",
+                new BigDecimal("1"), new BigDecimal("-1"), 0, false));
+        assertThrows(IllegalArgumentException.class, () -> new EmpleadoPorComision("10", "Teo",
+                BigDecimal.ZERO, new BigDecimal("-1"), new BigDecimal("0.1")));
+    }
+
+    /** Comprueba que la liquidacion se detiene si las deducciones producen un neto negativo. */
+    @Test
+    void rechazaDeduccionesQueGeneranNetoNegativo() {
+        CalculadoraNomina tasaArlInvalidaParaNeto = new CalculadoraNomina(new BigDecimal("0.97"));
+        EmpleadoTemporal empleado = new EmpleadoTemporal("11", "Uma", new BigDecimal("100"), 1);
+        assertThrows(IllegalArgumentException.class, () -> tasaArlInvalidaParaNeto.calcular(empleado));
+    }
+
+    /** Comprueba que la configuracion rechaza una tasa ARL superior al 100%. */
+    @Test
+    void rechazaTasaArlFueraDeRango() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new CalculadoraNomina(new BigDecimal("1.01")));
+    }
 }
